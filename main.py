@@ -147,4 +147,13 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
         elif ".jpg" in filename.lower() or ".png" in filename.lower():
             media_type = "image/jpeg"
 
-(Còn tiếp ở dưới...)
+        return StreamingResponse(
+            r.aiter_bytes(),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Accept-Ranges": "bytes"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
