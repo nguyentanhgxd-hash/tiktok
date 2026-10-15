@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapTiktok - Tải Video TikTok Không Logo, Full HD Miễn Phí</title>
+    <meta name="description" content="Trang web SnapTiktok giúp bạn tải video TikTok không logo, tải nhạc MP3, ảnh bìa chất lượng cao Full HD miễn phí cho điện thoại iPhone, Android và máy tính.">
+    <meta name="keywords" content="snap tiktok, tải video tiktok không logo, tai tiktok khong logo, download tiktok hd, tải nhạc tiktok mp3">
+    
+    <!-- Open Graph SEO -->
+    <meta property="og:title" content="SnapTiktok - Tải Video TikTok Không Logo & Full HD">
+    <meta property="og:description" content="Công cụ tải video TikTok không dính logo nhanh chóng, chất lượng cao hoàn toàn miễn phí.">
+    <meta property="og:type" content="website">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col justify-between font-sans">
+
+    <!-- Header / Navbar -->
+    <header class="bg-gray-800 border-b border-gray-700 py-4 px-6 shadow-md">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <a href="#" class="text-2xl font-black tracking-wider text-pink-500 flex items-center gap-2">
+                <i class="fa-solid fa-video"></i> SnapTiktok
+            </a>
+            <span class="text-xs bg-pink-600 text-white px-2.5 py-1 rounded-full font-medium">No Watermark</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-3xl mx-auto px-4 py-12 flex-grow w-full text-center">
+        <h1 class="text-3xl md:text-5xl font-extrabold mb-4 tracking-tight">
+            Tải Video TikTok <span class="text-pink-500">Không Logo</span>
+        </h1>
+        <p class="text-gray-400 mb-8 text-sm md:text-base max-w-xl mx-auto">
+            Công cụ tải video TikTok, Reels và tải nhạc MP3 chất lượng cao Full HD nhanh chóng, miễn phí, không cần cài đặt phần mềm.
+        </p>
+
+        <!-- Tool Box -->
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700 mb-8">
+            <div class="flex flex-col md:flex-row gap-3">
+                <input 
+                    type="text" 
+                    id="url-input" 
+                    placeholder="Dán liên kết video TikTok vào đây..." 
+                    class="flex-grow bg-gray-900 border border-gray-700 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-pink-500 transition text-sm"
+                >
+                <button 
+                    onclick="handleDownload()" 
+                    id="download-btn"
+                    class="bg-pink-600 hover:bg-pink-500 text-white font-bold px-6 py-3.5 rounded-xl transition duration-200 shadow-lg flex items-center justify-center gap-2 text-sm"
+                >
+                    <i class="fa-solid fa-download"></i> Tải Xuống
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Section (Hidden by default) -->
+        <div id="result-container" class="hidden bg-gray-800 p-6 rounded-2xl border border-gray-700 text-left mb-10 transition-all">
+            <div class="flex flex-col md:flex-row gap-6 items-center">
+                <img id="res-thumb" src="" alt="Thumbnail" class="w-32 h-32 object-cover rounded-xl border border-gray-700">
+                <div class="flex-grow w-full">
+                    <h3 id="res-title" class="font-bold text-lg mb-2 text-white line-clamp-2">Tiêu đề video</h3>
+                    <p id="res-duration" class="text-xs text-gray-400 mb-4"><i class="fa-regular fa-clock"></i> Thời lượng: N/A</p>
+                    <div id="formats-list" class="flex flex-wrap gap-2">
+                        <!-- Các nút tải chi tiết sẽ hiện ở đây -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEO Content Section (Giúp Google index từ khóa tốt hơn) -->
+        <section class="text-left mt-16 bg-gray-800/50 p-6 rounded-2xl border border-gray-700/60 leading-relaxed text-sm text-gray-300">
+            <h2 class="text-xl font-bold text-white mb-3">Hướng dẫn cách tải video TikTok không logo tại SnapTiktok</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-400">
+                <li>Mở ứng dụng <strong class="text-white">TikTok</strong> hoặc truy cập website trên trình duyệt.</li>
+                <li>Chọn video bạn muốn lưu, bấm vào nút <strong class="text-white">Chia sẻ</strong> và chọn <strong class="text-white">Sao chép liên kết</strong>.</li>
+                <li>Quay lại trang web <strong class="text-pink-500">SnapTiktok</strong>, dán đường link vừa sao chép vào ô trống ở trên.</li>
+                <li>Bấm nút <strong class="text-white">Tải Xuống</strong> và lựa chọn định dạng chất lượng bạn muốn (Video không logo HD hoặc Audio MP3).</li>
+            </ol>
+            
+            <h3 class="text-lg font-bold text-white mt-6 mb-2">Ưu điểm nổi bật của công cụ SnapTiktok</h3>
+            <ul class="list-disc list-inside space-y-1 text-gray-400">
+                <li><strong class="text-white">Không dính logo (No Watermark):</strong> Giúp video giữ nguyên độ nét gốc mà không bị dính ID hay logo mờ của TikTok.</li>
+                <li><strong class="text-white">Tốc độ cao:</strong> Xử lý và trả link tải về thiết bị chỉ trong vòng vài giây.</li>
+                <li><strong class="text-white">Tương thích mọi thiết bị:</strong> Hoạt động mượt mà trên điện thoại iPhone (iOS), Android, máy tính bảng và máy tính cá nhân.</li>
+            </ul>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 py-6 text-center text-xs text-gray-500">
+        <p>&copy; 2026 SnapTiktok. All rights reserved. Hỗ trợ tải video TikTok trực tuyến miễn phí.</p>
+    </footer>
+
+    <!-- JavaScript kết nối Backend FastAPI trên Render -->
+    <script>
+        // Thay thế link 'https://ten-ung-dung-cua-cau.onrender.com' bằng URL thực tế backend FastAPI của cậu
+        const API_BASE_URL = "https://ten-ung-dung-cua-cau.onrender.com";
+
+        async function handleDownload() {
+            const urlInput = document.getElementById("url-input").value.trim();
+            const btn = document.getElementById("download-btn");
+            const resultBox = document.getElementById("result-container");
+            const formatsList = document.getElementById("formats-list");
+            
+            if (!urlInput) {
+                alert("Vui lòng dán link video TikTok cần tải!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Đang xử lý...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/download?url=${encodeURIComponent(urlInput)}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Có lỗi xảy ra khi bóc tách link.");
+                }
+
+                // Hiển thị thông tin
+                document.getElementById("res-title").innerText = data.title;
+                document.getElementById("res-thumb").src = data.thumbnail || "https://via.placeholder.com/150";
+                document.getElementById("res-duration").innerHTML = `<i class="fa-regular fa-clock"></i> Thời lượng: ${data.duration}`;
+
+                formatsList.innerHTML = "";
+                data.formats.forEach(fmt => {
+                    const a = document.createElement("a");
+                    a.href = fmt.url;
+                    a.target = "_blank";
+                    a.className = "bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition inline-flex items-center gap-1.5 shadow";
+                    a.innerHTML = `<i class="fa-solid fa-download"></i> ${fmt.quality} (${fmt.ext.toUpperCase()})`;
+                    formatsList.appendChild(a);
+                });
+
+                resultBox.classList.remove("hidden");
+            } catch (err) {
+                alert(err.message || "Không thể kết nối đến server tải xuống!");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-download"></i> Tải Xuống';
+            }
+        }
+    </script>
+</body>
+</html>
