@@ -19,7 +19,7 @@ def download_media(url: str):
     if not url:
         raise HTTPException(status_code=400, detail="Vui lòng cung cấp đường dẫn TikTok!")
         
-    # 1. ƯU TIÊN GỌI API DỰ PHÒNG SIÊU NHANH (Phản hồi tức thì trong ~0.5s - 1s)
+    # 1. ƯU TIÊN CHẠY API DỰ PHÒNG TRƯỚC (Phản hồi siêu tốc trong ~0.5s - 1s)
     try:
         with httpx.Client(timeout=8.0) as client:
             api_res = client.get(f"https://tikwm.com/api/?url={url}")
@@ -55,13 +55,13 @@ def download_media(url: str):
     except Exception:
         pass
 
-    # 2. PHƯƠNG ÁN DỰ PHÒNG CHẠY NGẦM BẰNG YT-DLP (Nếu API trên bận)
+    # 2. PHƯƠNG ÁN DỰ PHÒNG CHẠY BẰNG YT-DLP (Nếu API trên bận)
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -122,6 +122,7 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
     
+    # Server Render tải ngầm file về trước bằng giả lập di động rồi stream ngược xuống máy người dùng
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
         "Referer": "https://www.tiktok.com/",
