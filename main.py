@@ -44,6 +44,8 @@ def download_media(url: str):
                     formats_list.append({
                         'quality': f.get('format_note') or f.get('resolution') or 'HD',
                         'ext': f.get('ext', 'mp4'),
+                        'vcodec': f.get('vcodec', 'none'),
+                        'acodec': f.get('acodec', 'none'),
                         'url': f.get('url')
                     })
             
@@ -51,13 +53,13 @@ def download_media(url: str):
                 "title": title,
                 "thumbnail": thumbnail,
                 "duration": duration,
-                "formats": formats_list[:3]
+                "formats": formats_list
             }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/proxy-download")
-async def proxy_download(url: str):
+async def proxy_download(url: str, filename: str = "tiktok_video.mp4"):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.tiktok.com/"
@@ -68,12 +70,16 @@ async def proxy_download(url: str):
         r = await client.send(req, stream=True)
         
         if r.status_code != 200:
-            raise HTTPException(status_code=400, detail="Không thể tải video từ máy chủ TikTok.")
+            raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
             
+        media_type = r.headers.get("content-type", "video/mp4")
+        if ".mp3" in filename.lower():
+            media_type = "audio/mpeg"
+
         return StreamingResponse(
             r.aiter_bytes(),
-            media_type=r.headers.get("content-type", "video/mp4"),
-            headers={"Content-Disposition": "attachment; filename=tiktok_video.mp4"}
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
