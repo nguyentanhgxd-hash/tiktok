@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
@@ -123,23 +123,17 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.tiktok.com/",
-        "Accept": "*/*",
-        "Range": "bytes=0-"
     }
     
     try:
-        client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
-        req = client.build_request("GET", url, headers=headers)
-        r = await client.send(req, stream=True)
-        
-        if r.status_code not in [200, 206]:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as fallback_client:
-                r = await fallback_client.get(url)
-                
-        if r.status_code not in [200, 206]:
-            raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
+        async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+            r = await client.get(url, headers=headers)
+            if r.status_code not in [200, 206]:
+                raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
+            
+            content_bytes = r.content
             
         media_type = "video/mp4"
         if ".mp3" in filename.lower():
@@ -147,12 +141,12 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
         elif ".jpg" in filename.lower() or ".png" in filename.lower():
             media_type = "image/jpeg"
 
-        return StreamingResponse(
-            r.aiter_bytes(),
+        return Response(
+            content=content_bytes,
             media_type=media_type,
             headers={
-                # Bọc tên file trong dấu ngoặc kép để tránh trình duyệt di động tự đổi đuôi sang .mpeg
                 "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Length": str(len(content_bytes)),
                 "Accept-Ranges": "bytes"
             }
         )
