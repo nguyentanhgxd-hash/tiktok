@@ -16,12 +16,20 @@ app.add_middleware(
 
 @app.get("/api/download")
 def download_media(url: str):
+    # Cấu hình yt-dlp tối ưu để né cơ chế chặn mới của TikTok
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
+        'extractor_args': {
+            'tiktok': {
+                'webpage_download': True
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -80,7 +88,7 @@ def download_media(url: str):
 @app.get("/api/proxy-download")
 async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
         "Referer": "https://www.tiktok.com/",
         "Accept": "*/*",
         "Range": "bytes=0-"
