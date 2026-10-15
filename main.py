@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
@@ -16,13 +16,19 @@ app.add_middleware(
 
 @app.get("/api/download")
 def download_media(url: str):
-    # Sử dụng cấu hình giả lập thiết bị di động để tránh bị Akamai/TikTok chặn link CDN
+    # Cấu hình yt-dlp tối ưu tương thích ngược với các bản mới nhất
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
+        'extractor_args': {
+            'tiktok': {
+                'webpage_download': True
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -37,6 +43,7 @@ def download_media(url: str):
             
             formats_list = []
             
+            # Xử lý dạng ảnh / slideshow
             if 'entries' in info:
                 for entry in info['entries']:
                     if 'url' in entry:
@@ -68,6 +75,15 @@ def download_media(url: str):
                         'url': f.get('url')
                     })
             
+            # Nếu không tìm thấy format nào, lấy trực tiếp url gốc của info
+            if not formats_list and info.get('url'):
+                formats_list.append({
+                    'quality': 'HD',
+                    'ext': 'mp4',
+                    'type': 'video',
+                    'url': info.get('url')
+                })
+            
             return {
                 "title": title,
                 "thumbnail": thumbnail,
@@ -75,42 +91,12 @@ def download_media(url: str):
                 "formats": formats_list
             }
     except Exception as e:
-        raise HTTPException(status_code=400, detail="Không thể bóc tách link này. Vui lòng kiểm tra lại đường dẫn!")
+        # Bắt lỗi chi tiết trả về client để dễ kiểm tra
+        raise HTTPException(status_code=400, detail=f"Lỗi bóc tách: {str(e)}")
 
 @app.get("/api/proxy-download")
 async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
-    
-    # Headers giả lập thiết bị di động để server Render tải hộ mà không bị TikTok chặn 403
-    headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-        "Referer": "https://www.tiktok.com/",
-        "Accept": "*/*",
-        "Range": "bytes=0-"
-    }
-    
-    try:
-        client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
-        req = client.build_request("GET", url, headers=headers)
-        r = await client.send(req, stream=True)
-        
-        if r.status_code not in [200, 206]:
-            raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
-            
-        media_type = "video/mp4"
-        if ".mp3" in filename.lower():
-            media_type = "audio/mpeg"
-        elif ".jpg" in filename.lower() or ".png" in filename.lower():
-            media_type = "image/jpeg"
-
-        return StreamingResponse(
-            r.aiter_bytes(),
-            media_type=media_type,
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}",
-                "Accept-Ranges": "bytes"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Sử dụng RedirectResponse chuẩn 303 để trình duyệt tự tải trực tiếp
+    return RedirectResponse(url=url, status_code=303)
