@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
@@ -19,25 +19,26 @@ def download_media(url: str):
     if not url:
         raise HTTPException(status_code=400, detail="Vui lòng cung cấp đường dẫn TikTok!")
         
-    # 1. ƯU TIÊN CHẠY API DỰ PHÒNG TRƯỚC (Phản hồi siêu tốc trong ~0.5s - 1s)
+    # 1. ƯU TIÊN LẤY LINK CHẤT LƯỢNG CAO TỪ API DỰ PHÒNG
     try:
         with httpx.Client(timeout=8.0) as client:
-            api_res = client.get(f"https://tikwm.com/api/?url={url}")
+            api_res = client.get(f"https://tikwm.com/api/?url={url}&hd=1")
             if api_res.status_code == 200:
                 r_data = api_res.json()
                 if r_data.get("code") == 0:
                     data_info = r_data.get("data", {})
-                    video_url = data_info.get("play")
+                    # Ưu tiên lấy link HD không logo (hdplay), nếu không có thì lấy play
+                    video_url = data_info.get("hdplay") or data_info.get("play")
                     music_url = data_info.get("music")
                     cover_url = data_info.get("cover")
                     images = data_info.get("images", [])
                     
                     formats_fallback = []
                     if video_url:
-                        formats_fallback.append({'quality': 'HD (Không logo)', 'ext': 'mp4', 'type': 'video', 'url': video_url})
+                        formats_fallback.append({'quality': 'Full HD / 4K (Không logo)', 'ext': 'mp4', 'type': 'video', 'url': video_url})
                         formats_fallback.append({'quality': 'SD (Có logo)', 'ext': 'mp4', 'type': 'video', 'url': data_info.get("wmplay", video_url)})
                     if music_url:
-                        formats_fallback.append({'quality': 'Audio', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
+                        formats_fallback.append({'quality': 'Audio gốc (MP3)', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
                         
                     if images:
                         for img in images:
@@ -47,7 +48,7 @@ def download_media(url: str):
                         
                     if formats_fallback:
                         return {
-                            "title": data_info.get("title", "Video TikTok"),
+                            "title": data_info.get("title", "Video TikTok Chất Lượng Cao"),
                             "thumbnail": cover_url or "",
                             "duration": str(data_info.get("duration", "N/A")),
                             "formats": formats_fallback
@@ -55,13 +56,14 @@ def download_media(url: str):
     except Exception:
         pass
 
-    # 2. PHƯƠNG ÁN DỰ PHÒNG CHẠY BẰNG YT-DLP (Nếu API trên bận)
+    # 2. PHƯƠNG ÁN DỰ PHÒNG: DÙNG YT-DLP ÉP LẤY LUỒNG VIDEO & ÂM THANH NÉT NHẤT
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
-        'format': 'best',
+        # Ép chọn định dạng tốt nhất (kết hợp video nét nhất + audio chuẩn nhất)
+        'format': 'bestvideo+bestaudio/best',
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -69,7 +71,7 @@ def download_media(url: str):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            title = info.get('title', 'Video TikTok')
+            title = info.get('title', 'Video TikTok Chất Lượng Cao')
             thumbnail = info.get('thumbnail', '')
             duration = info.get('duration_string', 'N/A')
             
@@ -95,11 +97,14 @@ def download_media(url: str):
                         ftype = 'image'
                     elif vcodec == 'none' and acodec != 'none':
                         ftype = 'audio'
+                        qual = 'Audio gốc (Chất lượng cao)'
                     else:
                         ftype = 'video'
+                        height = f.get('height', 1080)
+                        qual = f'Full HD / {height}p (Không logo)' if height >= 720 else f'HD ({height}p)'
 
                     formats_list.append({
-                        'quality': f.get('format_note') or f.get('resolution') or 'HD',
+                        'quality': qual,
                         'ext': ext,
                         'type': ftype,
                         'url': f.get('url')
