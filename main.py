@@ -1,7 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
@@ -22,7 +21,6 @@ def download_media(url: str):
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
-        # Thêm các headers giả lập trình duyệt thật để tránh bị TikTok/Facebook chặn 403
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -34,7 +32,6 @@ def download_media(url: str):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             
-            # Lấy thông tin cơ bản
             title = info.get('title', 'Không có tiêu đề')
             thumbnail = info.get('thumbnail', '')
             duration = info.get('duration_string', 'N/A')
@@ -50,15 +47,15 @@ def download_media(url: str):
                         'url': f.get('url')
                     })
             
-            # Lọc bớt các định dạng trùng lặp nếu cần
             return {
                 "title": title,
                 "thumbnail": thumbnail,
                 "duration": duration,
-                "formats": formats_list[:3] # Lấy tối ưu 3 định dạng đầu
+                "formats": formats_list[:3]
             }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 @app.get("/api/proxy-download")
 async def proxy_download(url: str):
     headers = {
@@ -66,7 +63,6 @@ async def proxy_download(url: str):
         "Referer": "https://www.tiktok.com/"
     }
     try:
-        # Sử dụng httpx để stream video từ link gốc TikTok qua server của cậu
         client = httpx.AsyncClient(follow_redirects=True)
         req = client.build_request("GET", url, headers=headers)
         r = await client.send(req, stream=True)
