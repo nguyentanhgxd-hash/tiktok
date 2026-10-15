@@ -19,13 +19,49 @@ def download_media(url: str):
     if not url:
         raise HTTPException(status_code=400, detail="Vui lòng cung cấp đường dẫn TikTok!")
         
-    # 1. Thử dùng yt-dlp trước
+    # 1. ƯU TIÊN GỌI API DỰ PHÒNG SIÊU NHANH (Phản hồi tức thì trong ~0.5s - 1s)
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            api_res = client.get(f"https://tikwm.com/api/?url={url}")
+            if api_res.status_code == 200:
+                r_data = api_res.json()
+                if r_data.get("code") == 0:
+                    data_info = r_data.get("data", {})
+                    video_url = data_info.get("play")
+                    music_url = data_info.get("music")
+                    cover_url = data_info.get("cover")
+                    images = data_info.get("images", [])
+                    
+                    formats_fallback = []
+                    if video_url:
+                        formats_fallback.append({'quality': 'HD (Không logo)', 'ext': 'mp4', 'type': 'video', 'url': video_url})
+                        formats_fallback.append({'quality': 'SD (Có logo)', 'ext': 'mp4', 'type': 'video', 'url': data_info.get("wmplay", video_url)})
+                    if music_url:
+                        formats_fallback.append({'quality': 'Audio', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
+                        
+                    if images:
+                        for img in images:
+                            formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': img})
+                    elif cover_url:
+                        formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': cover_url})
+                        
+                    if formats_fallback:
+                        return {
+                            "title": data_info.get("title", "Video TikTok"),
+                            "thumbnail": cover_url or "",
+                            "duration": str(data_info.get("duration", "N/A")),
+                            "formats": formats_fallback
+                        }
+    except Exception:
+        pass
+
+    # 2. PHƯƠNG ÁN DỰ PHÒNG CHẠY NGẦM BẰNG YT-DLP (Nếu API trên bận)
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -79,41 +115,6 @@ def download_media(url: str):
     except Exception:
         pass
 
-    # 2. Dự phòng qua API TikWM lấy link sạch
-    try:
-        with httpx.Client(timeout=15.0) as client:
-            api_res = client.get(f"https://tikwm.com/api/?url={url}")
-            if api_res.status_code == 200:
-                r_data = api_res.json()
-                if r_data.get("code") == 0:
-                    data_info = r_data.get("data", {})
-                    video_url = data_info.get("play")
-                    music_url = data_info.get("music")
-                    cover_url = data_info.get("cover")
-                    images = data_info.get("images", [])
-                    
-                    formats_fallback = []
-                    if video_url:
-                        formats_fallback.append({'quality': 'HD (Không logo)', 'ext': 'mp4', 'type': 'video', 'url': video_url})
-                        formats_fallback.append({'quality': 'SD (Có logo)', 'ext': 'mp4', 'type': 'video', 'url': data_info.get("wmplay", video_url)})
-                    if music_url:
-                        formats_fallback.append({'quality': 'Audio', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
-                        
-                    if images:
-                        for img in images:
-                            formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': img})
-                    elif cover_url:
-                        formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': cover_url})
-                        
-                    return {
-                        "title": data_info.get("title", "Video TikTok"),
-                        "thumbnail": cover_url or "",
-                        "duration": str(data_info.get("duration", "N/A")),
-                        "formats": formats_fallback
-                    }
-    except Exception:
-        pass
-
     raise HTTPException(status_code=400, detail="Không thể bóc tách link này. Vui lòng kiểm tra lại đường dẫn TikTok!")
 
 @app.get("/api/proxy-download")
@@ -121,7 +122,6 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
     
-    # Server Render tải ngầm file về trước bằng giả lập di động rồi stream ngược xuống máy người dùng
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
         "Referer": "https://www.tiktok.com/",
@@ -147,13 +147,4 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
         elif ".jpg" in filename.lower() or ".png" in filename.lower():
             media_type = "image/jpeg"
 
-        return StreamingResponse(
-            r.aiter_bytes(),
-            media_type=media_type,
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}",
-                "Accept-Ranges": "bytes"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+(Còn tiếp ở dưới...)
