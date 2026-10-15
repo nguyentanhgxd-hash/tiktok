@@ -28,22 +28,43 @@ def download_media(url: str):
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = yt_dlp.YoutubeDL({'quiet': True}).extract_info(url, download=False)
+            info = ydl.extract_info(url, download=False)
             
             title = info.get('title', 'Video TikTok')
             thumbnail = info.get('thumbnail', '')
             duration = info.get('duration_string', 'N/A')
             
             formats_list = []
-            formats = info.get('formats', [info])
             
+            # Xử lý trường hợp TikTok dạng ảnh (Slideshow / Image post)
+            if 'entries' in info:
+                for entry in info['entries']:
+                    if 'url' in entry:
+                        formats_list.append({
+                            'quality': 'Ảnh gốc',
+                            'ext': 'jpg',
+                            'type': 'image',
+                            'url': entry['url']
+                        })
+            
+            formats = info.get('formats', [info])
             for f in formats:
                 if f.get('url'):
+                    ext = f.get('ext', 'mp4')
+                    vcodec = f.get('vcodec', 'none')
+                    acodec = f.get('acodec', 'none')
+                    
+                    if ext in ['jpg', 'png', 'webp']:
+                        ftype = 'image'
+                    elif vcodec == 'none' and acodec != 'none':
+                        ftype = 'audio'
+                    else:
+                        ftype = 'video'
+
                     formats_list.append({
                         'quality': f.get('format_note') or f.get('resolution') or 'HD',
-                        'ext': f.get('ext', 'mp4'),
-                        'vcodec': f.get('vcodec', 'none'),
-                        'acodec': f.get('acodec', 'none'),
+                        'ext': ext,
+                        'type': ftype,
                         'url': f.get('url')
                     })
             
@@ -57,27 +78,27 @@ def download_media(url: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/proxy-download")
-async def proxy_download(url: str, filename: str = "tiktok_video.mp4"):
-    # Sử dụng headers giả lập hoàn chỉnh để đánh lừa bộ lọc Akamai của TikTok
+async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Referer": "https://www.tiktok.com/",
         "Accept": "*/*",
-        "Accept-Language": "en-US,en;q=0.9",
         "Range": "bytes=0-"
     }
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             r = await client.get(url, headers=headers)
-            
-            # Nếu TikTok trả về lỗi 403 hoặc 400 ở proxy, ta cho phép redirect hoặc thử lại bằng cách nới lỏng headers
             if r.status_code not in [200, 206]:
                 r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
                 
             if r.status_code not in [200, 206]:
                 raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
                 
-            media_type = "audio/mpeg" if ".mp3" in filename.lower() else "video/mp4"
+            media_type = "video/mp4"
+            if ".mp3" in filename.lower():
+                media_type = "audio/mpeg"
+            elif ".jpg" in filename.lower() or ".png" in filename.lower():
+                media_type = "image/jpeg"
 
             return StreamingResponse(
                 r.aiter_bytes(),
