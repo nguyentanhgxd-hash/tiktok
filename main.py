@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
@@ -16,18 +16,16 @@ app.add_middleware(
 
 @app.get("/api/download")
 def download_media(url: str):
+    if not url:
+        raise HTTPException(status_code=400, detail="Vui lòng cung cấp đường dẫn TikTok!")
+        
+    # 1. Thử bóc tách trước bằng yt-dlp phiên bản mới nhất
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
-        'extractor_args': {
-            'tiktok': {
-                'webpage_download': True
-            }
-        },
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -35,13 +33,11 @@ def download_media(url: str):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            
             title = info.get('title', 'Video TikTok')
             thumbnail = info.get('thumbnail', '')
             duration = info.get('duration_string', 'N/A')
             
             formats_list = []
-            
             if 'entries' in info:
                 for entry in info['entries']:
                     if 'url' in entry:
@@ -73,91 +69,56 @@ def download_media(url: str):
                         'url': f.get('url')
                     })
             
-            if not formats_list and info.get('url'):
-                formats_list.append({
-                    'quality': 'HD',
-                    'ext': 'mp4',
-                    'type': 'video',
-                    'url': info.get('url')
-                })
-            
-            return {
-                "title": title,
-                "thumbnail": thumbnail,
-                "duration": duration,
-                "formats": formats_list
-            }
-    except Exception as e:
-        # Gọi API dự phòng từ tikwm để lấy link sạch không bị chặn IP datacenter
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                api_res = client.get(f"https://tikwm.com/api/?url={url}")
-                if api_res.status_code == 200:
-                    r_data = api_res.json()
-                    if r_data.get("code") == 0:
-                        data_info = r_data.get("data", {})
-                        video_url = data_info.get("play")
-                        music_url = data_info.get("music")
-                        cover_url = data_info.get("cover")
+            if formats_list:
+                return {
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "duration": duration,
+                    "formats": formats_list
+                }
+    except Exception:
+        pass  # Nếu yt-dlp gặp lỗi chặn IP trên Render, sẽ tự động chuyển sang cơ chế dự phòng bên dưới
+
+    # 2. Cơ chế dự phòng thông minh (Fallback API) chống lỗi tuyệt đối trên Render
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            api_res = client.get(f"https://tikwm.com/api/?url={url}")
+            if api_res.status_code == 200:
+                r_data = api_res.json()
+                if r_data.get("code") == 0:
+                    data_info = r_data.get("data", {})
+                    video_url = data_info.get("play")
+                    music_url = data_info.get("music")
+                    cover_url = data_info.get("cover")
+                    images = data_info.get("images", [])
+                    
+                    formats_fallback = []
+                    if video_url:
+                        formats_fallback.append({'quality': 'HD (Không logo)', 'ext': 'mp4', 'type': 'video', 'url': video_url})
+                        formats_fallback.append({'quality': 'SD (Có logo)', 'ext': 'mp4', 'type': 'video', 'url': data_info.get("wmplay", video_url)})
+                    if music_url:
+                        formats_fallback.append({'quality': 'Audio', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
                         
-                        formats_fallback = []
-                        if video_url:
-                            formats_fallback.append({'quality': 'HD', 'ext': 'mp4', 'type': 'video', 'url': video_url})
-                        if music_url:
-                            formats_fallback.append({'quality': 'Audio', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
-                        if cover_url:
-                            formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': cover_url})
-                            
-                        return {
-                            "title": data_info.get("title", "Video TikTok"),
-                            "thumbnail": cover_url or thumbnail,
-                            "duration": "N/A",
-                            "formats": formats_fallback
-                        }
-        except Exception:
-            pass
-            
-        raise HTTPException(status_code=400, detail="Không thể bóc tách link này. Vui lòng kiểm tra lại đường dẫn!")
+                    if images:
+                        for img in images:
+                            formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': img})
+                    elif cover_url:
+                        formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': cover_url})
+                        
+                    return {
+                        "title": data_info.get("title", "Video TikTok"),
+                        "thumbnail": cover_url or "",
+                        "duration": str(data_info.get("duration", "N/A")),
+                        "formats": formats_fallback
+                    }
+    except Exception as e:
+        pass
+
+    raise HTTPException(status_code=400, detail="Không thể bóc tách link này. Vui lòng kiểm tra lại đường dẫn TikTok!")
 
 @app.get("/api/proxy-download")
-async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
+async def proxy_download(url: str):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
-    
-    # Server Render sẽ tải ngầm file từ TikTok về trước, sau đó stream ngược lại cho người dùng
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Referer": "https://www.tiktok.com/",
-        "Accept": "*/*",
-        "Range": "bytes=0-"
-    }
-    
-    try:
-        client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
-        req = client.build_request("GET", url, headers=headers)
-        r = await client.send(req, stream=True)
-        
-        if r.status_code not in [200, 206]:
-            # Thử lại với client không giới hạn khắt khe nếu lần đầu lỗi
-            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as fallback_client:
-                r = await fallback_client.get(url)
-                
-        if r.status_code not in [200, 206]:
-            raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
-            
-        media_type = "video/mp4"
-        if ".mp3" in filename.lower():
-            media_type = "audio/mpeg"
-        elif ".jpg" in filename.lower() or ".png" in filename.lower():
-            media_type = "image/jpeg"
-
-        return StreamingResponse(
-            r.aiter_bytes(),
-            media_type=media_type,
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}",
-                "Accept-Ranges": "bytes"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Redirect thẳng tới link sạch giúp trình duyệt tải trực tiếp với tốc độ cao nhất và không bị lỗi
+    return RedirectResponse(url=url, status_code=303)
