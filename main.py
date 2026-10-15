@@ -122,7 +122,6 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
     
-    # Server Render tải ngầm file về trước bằng giả lập di động rồi stream ngược xuống máy người dùng
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
         "Referer": "https://www.tiktok.com/",
@@ -152,7 +151,8 @@ async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
             r.aiter_bytes(),
             media_type=media_type,
             headers={
-                "Content-Disposition": f"attachment; filename={filename}",
+                # Bọc tên file trong dấu ngoặc kép để tránh trình duyệt di động tự đổi đuôi sang .mpeg
+                "Content-Disposition": f'attachment; filename="{filename}"',
                 "Accept-Ranges": "bytes"
             }
         )
