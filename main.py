@@ -1,6 +1,6 @@
 import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
@@ -19,13 +19,13 @@ def download_media(url: str):
     if not url:
         raise HTTPException(status_code=400, detail="Vui lòng cung cấp đường dẫn TikTok!")
         
-    # 1. Thử bóc tách trước bằng yt-dlp phiên bản mới nhất
+    # 1. Thử dùng yt-dlp trước
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
         'format': 'best',
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
             'Referer': 'https://www.tiktok.com/',
         }
     }
@@ -77,9 +77,9 @@ def download_media(url: str):
                     "formats": formats_list
                 }
     except Exception:
-        pass  # Nếu yt-dlp gặp lỗi chặn IP trên Render, sẽ tự động chuyển sang cơ chế dự phòng bên dưới
+        pass
 
-    # 2. Cơ chế dự phòng thông minh (Fallback API) chống lỗi tuyệt đối trên Render
+    # 2. Dự phòng qua API TikWM lấy link sạch
     try:
         with httpx.Client(timeout=15.0) as client:
             api_res = client.get(f"https://tikwm.com/api/?url={url}")
@@ -111,14 +111,49 @@ def download_media(url: str):
                         "duration": str(data_info.get("duration", "N/A")),
                         "formats": formats_fallback
                     }
-    except Exception as e:
+    except Exception:
         pass
 
     raise HTTPException(status_code=400, detail="Không thể bóc tách link này. Vui lòng kiểm tra lại đường dẫn TikTok!")
 
 @app.get("/api/proxy-download")
-async def proxy_download(url: str):
+async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
-    # Redirect thẳng tới link sạch giúp trình duyệt tải trực tiếp với tốc độ cao nhất và không bị lỗi
-    return RedirectResponse(url=url, status_code=303)
+    
+    # Server Render tải ngầm file về trước bằng giả lập di động rồi stream ngược xuống máy người dùng
+    headers = {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+        "Referer": "https://www.tiktok.com/",
+        "Accept": "*/*",
+        "Range": "bytes=0-"
+    }
+    
+    try:
+        client = httpx.AsyncClient(follow_redirects=True, timeout=60.0)
+        req = client.build_request("GET", url, headers=headers)
+        r = await client.send(req, stream=True)
+        
+        if r.status_code not in [200, 206]:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as fallback_client:
+                r = await fallback_client.get(url)
+                
+        if r.status_code not in [200, 206]:
+            raise HTTPException(status_code=400, detail="Không thể tải file từ máy chủ TikTok.")
+            
+        media_type = "video/mp4"
+        if ".mp3" in filename.lower():
+            media_type = "audio/mpeg"
+        elif ".jpg" in filename.lower() or ".png" in filename.lower():
+            media_type = "image/jpeg"
+
+        return StreamingResponse(
+            r.aiter_bytes(),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Accept-Ranges": "bytes"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
