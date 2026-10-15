@@ -16,7 +16,7 @@ app.add_middleware(
 
 @app.get("/api/download")
 def download_media(url: str):
-    # Cấu hình yt-dlp tối ưu tương thích ngược với các bản mới nhất
+    # Cấu hình yt-dlp với các tham số giả lập trình duyệt thực tế
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
@@ -28,6 +28,7 @@ def download_media(url: str):
         },
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
             'Referer': 'https://www.tiktok.com/',
         }
@@ -75,7 +76,7 @@ def download_media(url: str):
                         'url': f.get('url')
                     })
             
-            # Nếu không tìm thấy format nào, lấy trực tiếp url gốc của info
+            # Fallback nếu không có định dạng chi tiết
             if not formats_list and info.get('url'):
                 formats_list.append({
                     'quality': 'HD',
@@ -91,12 +92,39 @@ def download_media(url: str):
                 "formats": formats_list
             }
     except Exception as e:
-        # Bắt lỗi chi tiết trả về client để dễ kiểm tra
-        raise HTTPException(status_code=400, detail=f"Lỗi bóc tách: {str(e)}")
+        # Fallback tự động gọi qua public API dự phòng nếu yt-dlp bị chặn IP trên Render
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                api_res = client.get(f"https://tikwm.com/api/?url={url}")
+                if api_res.status_code == 200:
+                    r_data = api_res.json()
+                    if r_data.get("code") == 0:
+                        data_info = r_data.get("data", {})
+                        video_url = data_info.get("play")
+                        music_url = data_info.get("music")
+                        cover_url = data_info.get("cover")
+                        
+                        formats_fallback = []
+                        if video_url:
+                            formats_fallback.append({'quality': 'HD', 'ext': 'mp4', 'type': 'video', 'url': video_url})
+                        if music_url:
+                            formats_fallback.append({'quality': 'Audio', 'ext': 'mp3', 'type': 'audio', 'url': music_url})
+                        if cover_url:
+                            formats_fallback.append({'quality': 'Ảnh gốc', 'ext': 'jpg', 'type': 'image', 'url': cover_url})
+                            
+                        return {
+                            "title": data_info.get("title", "Video TikTok"),
+                            "thumbnail": cover_url or thumbnail,
+                            "duration": "N/A",
+                            "formats": formats_fallback
+                        }
+        except Exception:
+            pass
+            
+        raise HTTPException(status_code=400, detail="Không thể bóc tách link này. Vui lòng kiểm tra lại đường dẫn!")
 
 @app.get("/api/proxy-download")
 async def proxy_download(url: str, filename: str = "tiktok_media.mp4"):
     if not url:
         raise HTTPException(status_code=400, detail="Thiếu URL tải xuống.")
-    # Sử dụng RedirectResponse chuẩn 303 để trình duyệt tự tải trực tiếp
     return RedirectResponse(url=url, status_code=303)
